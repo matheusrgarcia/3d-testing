@@ -1,34 +1,51 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Game from "./Game";
 
-const GameInterface = () => {
-  const [showGrid, setShowGrid] = useState(true);
+interface GameInterfaceProps {
+  showGrid: boolean;
+  onToggleGrid: () => void;
+}
 
-  const handleDebugToggle = (show: boolean) => {
-    setShowGrid(show);
-  };
+const GameInterface = ({ showGrid, onToggleGrid }: GameInterfaceProps) => {
+  const [isToggling, setIsToggling] = useState(false);
+
+  const handleToggle = useCallback(() => {
+    if (isToggling) return;
+    
+    setIsToggling(true);
+    onToggleGrid();
+    
+    setTimeout(() => {
+      setIsToggling(false);
+    }, 300);
+  }, [isToggling, onToggleGrid]);
 
   return (
-    <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
-      <Game onDebugToggle={handleDebugToggle} />
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <Game showGrid={showGrid} />
       <div
         style={{
           position: "absolute",
           top: "20px",
           right: "20px",
           zIndex: 1000,
+          pointerEvents: "auto",
         }}
       >
         <button
-          onClick={() => handleDebugToggle(!showGrid)}
+          onClick={handleToggle}
+          disabled={isToggling}
           style={{
             padding: "10px 20px",
             backgroundColor: showGrid ? "#4CAF50" : "#f44336",
             color: "white",
             border: "none",
             borderRadius: "5px",
-            cursor: "pointer",
+            cursor: isToggling ? "not-allowed" : "pointer",
             fontSize: "14px",
+            userSelect: "none",
+            touchAction: "manipulation",
+            opacity: isToggling ? 0.7 : 1,
           }}
         >
           {showGrid ? "Hide Grid" : "Show Grid"}

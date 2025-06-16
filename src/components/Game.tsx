@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
 interface GameProps {
-  onDebugToggle: (showGrid: boolean) => void;
+  showGrid: boolean;
 }
 
 interface GameState {
@@ -13,25 +13,48 @@ interface GameState {
   }>;
 }
 
-const Game = ({ onDebugToggle }: GameProps) => {
+const Game = ({ showGrid }: GameProps) => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const [showGrid, setShowGrid] = useState(true);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const gridHelperRef = useRef<THREE.GridHelper | null>(null);
 
   useEffect(() => {
     if (!mountRef.current) return;
 
     // Basic setup
     const scene = new THREE.Scene();
+    sceneRef.current = scene;
+
     const camera = new THREE.PerspectiveCamera(
       75,
       window.innerWidth / window.innerHeight,
       0.1,
       1000
     );
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    cameraRef.current = camera;
+
+    const renderer = new THREE.WebGLRenderer({ 
+      antialias: true,
+      powerPreference: "high-performance",
+      preserveDrawingBuffer: true
+    });
+    rendererRef.current = renderer;
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mountRef.current.appendChild(renderer.domElement);
+
+    // Handle context loss
+    renderer.domElement.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault();
+      console.log('WebGL context lost');
+    }, false);
+
+    renderer.domElement.addEventListener('webglcontextrestored', () => {
+      console.log('WebGL context restored');
+      animate();
+    }, false);
 
     // Fullscreen setup
     const enterFullscreen = () => {
@@ -61,13 +84,13 @@ const Game = ({ onDebugToggle }: GameProps) => {
     const headGeometry = new THREE.SphereGeometry(0.5, 32, 32);
     const headMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
     const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.y = 2.5;
+    head.position.y = 1.8;
     body.add(head);
 
     // Eyes
     const eyeGeometry = new THREE.SphereGeometry(0.1, 16, 16);
     const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    
+
     const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
     leftEye.position.set(0.2, 0.1, 0.4);
     head.add(leftEye);
@@ -85,12 +108,13 @@ const Game = ({ onDebugToggle }: GameProps) => {
 
     // Add grid helper
     const gridHelper = new THREE.GridHelper(200, 200);
+    gridHelperRef.current = gridHelper;
+    gridHelper.visible = showGrid;
     scene.add(gridHelper);
 
     // Debug toggle handler
     const handleDebugToggle = (show: boolean) => {
       gridHelper.visible = show;
-      setShowGrid(show);
     };
 
     // Initial debug state
@@ -136,7 +160,7 @@ const Game = ({ onDebugToggle }: GameProps) => {
     // Load or create game state
     let gameState: GameState;
     const savedState = localStorage.getItem("gameState");
-    
+
     if (savedState) {
       gameState = JSON.parse(savedState);
       // Restore player position
@@ -146,25 +170,27 @@ const Game = ({ onDebugToggle }: GameProps) => {
         gameState.playerPosition.z
       );
       // Restore plants
-      gameState.plants.forEach(plant => {
-        if (plant.type === "tree") createTree(plant.position.x, plant.position.z);
-        else if (plant.type === "bush") createBush(plant.position.x, plant.position.z);
+      gameState.plants.forEach((plant) => {
+        if (plant.type === "tree")
+          createTree(plant.position.x, plant.position.z);
+        else if (plant.type === "bush")
+          createBush(plant.position.x, plant.position.z);
         else createFlower(plant.position.x, plant.position.z);
       });
     } else {
       // Create new game state
       gameState = {
         playerPosition: { x: 0, y: 1, z: 0 },
-        plants: []
+        plants: [],
       };
-      
+
       // Generate new plants
       for (let i = 0; i < 30; i++) {
         const x = Math.random() * 180 - 90;
         const z = Math.random() * 180 - 90;
         const type = Math.random();
         let plantType: "tree" | "bush" | "flower";
-        
+
         if (type < 0.5) {
           createTree(x, z);
           plantType = "tree";
@@ -175,13 +201,13 @@ const Game = ({ onDebugToggle }: GameProps) => {
           createFlower(x, z);
           plantType = "flower";
         }
-        
+
         gameState.plants.push({
           type: plantType,
-          position: { x, y: 0, z }
+          position: { x, y: 0, z },
         });
       }
-      
+
       // Save initial state
       localStorage.setItem("gameState", JSON.stringify(gameState));
     }
@@ -195,11 +221,11 @@ const Game = ({ onDebugToggle }: GameProps) => {
     const handleWheel = (event: WheelEvent) => {
       const zoomSpeed = 0.5;
       const delta = event.deltaY * zoomSpeed;
-      
+
       // Calculate new camera position while maintaining isometric angle
       const angle = Math.PI / 4; // 45 degrees
       const newDistance = cameraDistance + delta;
-      
+
       if (newDistance >= 5 && newDistance <= 30) {
         cameraDistance = newDistance;
         camera.position.set(
@@ -268,7 +294,7 @@ const Game = ({ onDebugToggle }: GameProps) => {
         gameState.playerPosition = {
           x: body.position.x,
           y: body.position.y,
-          z: body.position.z
+          z: body.position.z,
         };
         localStorage.setItem("gameState", JSON.stringify(gameState));
       }
@@ -293,23 +319,34 @@ const Game = ({ onDebugToggle }: GameProps) => {
       window.removeEventListener("keyup", () => {});
       window.removeEventListener("wheel", handleWheel);
       mountRef.current?.removeEventListener("click", enterFullscreen);
-      mountRef.current?.removeChild(renderer.domElement);
+      
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+        mountRef.current?.removeChild(rendererRef.current.domElement);
+      }
     };
+  }, []);
+
+  // Separate effect for grid visibility
+  useEffect(() => {
+    if (gridHelperRef.current) {
+      gridHelperRef.current.visible = showGrid;
+    }
   }, [showGrid]);
 
   return (
-    <div 
-      ref={mountRef} 
-      style={{ 
-        width: "100vw", 
-        height: "100vh", 
+    <div
+      ref={mountRef}
+      style={{
+        width: "100%",
+        height: "100%",
         margin: 0,
         padding: 0,
         overflow: "hidden",
-        position: "fixed",
+        position: "absolute",
         top: 0,
-        left: 0
-      }} 
+        left: 0,
+      }}
     />
   );
 };
