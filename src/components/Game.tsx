@@ -1,5 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+
+interface GameProps {
+  onDebugToggle: (showGrid: boolean) => void;
+}
 
 interface GameState {
   playerPosition: { x: number; y: number; z: number };
@@ -9,8 +13,9 @@ interface GameState {
   }>;
 }
 
-const Game = () => {
+const Game = ({ onDebugToggle }: GameProps) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const [showGrid, setShowGrid] = useState(true);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -81,6 +86,15 @@ const Game = () => {
     // Add grid helper
     const gridHelper = new THREE.GridHelper(200, 200);
     scene.add(gridHelper);
+
+    // Debug toggle handler
+    const handleDebugToggle = (show: boolean) => {
+      gridHelper.visible = show;
+      setShowGrid(show);
+    };
+
+    // Initial debug state
+    handleDebugToggle(showGrid);
 
     // Plant types
     const createTree = (x: number, z: number) => {
@@ -281,7 +295,7 @@ const Game = () => {
       mountRef.current?.removeEventListener("click", enterFullscreen);
       mountRef.current?.removeChild(renderer.domElement);
     };
-  }, []);
+  }, [showGrid]);
 
   return (
     <div 

@@ -1,10 +1,12 @@
 import Game from './components/Game'
 import './App.css'
+import GameInterface from './components/GameInterface'
 
 function App() {
   return (
     <div className="App">
-      <Game />
+      <GameInterface />
+      <Game onDebugToggle={() => {}} />
     </div>
   )
 }
